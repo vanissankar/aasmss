@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>AASMS Student Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin:0; background:#fffaf5; }
+    #loginSection { display:flex; justify-content:center; align-items:center; height:100vh; background:#fff4e6; }
+    .login-box { max-width:350px; width:100%; background:#fff; padding:24px; border-radius:10px;
+      box-shadow:0 4px 12px rgba(0,0,0,0.15); border-top:6px solid #ff6600; }
+    .login-box h1 { text-align:center; margin-bottom:20px; color:#ff6600; }
+    form { display:flex; flex-direction:column; gap:12px; }
+    input, button { padding:10px; border:1px solid #ccc; border-radius:6px; font-size:14px; }
+    button { background:#ff6600; color:white; border:none; cursor:pointer; }
+    button:hover { background:#e65c00; }
+    #status { margin-top:10px; text-align:center; font-size:14px; }
+
+    #dashboardSection { display:none; }
+    header { background:#ff6600; color:white; text-align:center; padding:0.8rem;
+      font-size:1.2rem; position:fixed; top:0; width:100%; z-index:10;
+      display:flex; justify-content:space-between; align-items:center; }
+    header button { background:#fff; color:#ff6600; border:none; border-radius:5px;
+      padding:5px 10px; cursor:pointer; font-weight:bold; }
+    header button:hover { background:#ffe6d9; }
+
+    main { padding:70px 10px 80px; }
+    .tab { display:none; }
+    .tab.active { display:block; }
+
+    .tab-nav { display:flex; justify-content:space-around; align-items:center;
+      background:#fff; border-top:1px solid #ccc; position:fixed; bottom:0; left:0; right:0;
+      height:60px; z-index:10; }
+    .tab-nav button { flex:1; padding:8px; border:none; background:none; font-size:0.9rem;
+      font-weight:bold; color:#555; display:flex; flex-direction:column; align-items:center; gap:3px; }
+    .tab-nav button.active { color:#ff6600; }
+
+    #reader { width:90%; max-width:400px; height:70%; max-height:400px; margin:15px auto;
+      border:2px solid #ff6600; border-radius:10px; }
+    #feedback { text-align:center; margin:10px; font-weight:bold; }
+
+    table { width:100%; border-collapse:collapse; font-size:0.85rem; margin-top:10px; }
+    th, td { border:1px solid #ddd; padding:6px; text-align:center; }
+    th { background:#ff6600; color:white; font-size:0.9rem; }
+    td.present { background:#c8e6c9; }
+    td.late { background:#ffe0b2; }
+    td.absent { background:#ffcdd2; }
+    td.notmarked { background:#f5f5f5; }
+    .table-container { overflow-x:auto; }
+
+    /* ✅ Toast Notification */
+    #toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #4CAF50;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 6px;
+      display: none;
+      font-weight: bold;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      z-index: 9999;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ✅ Toast -->
+<div id="toast">✅ Scan Successful</div>
+
+<!-- ========== LOGIN SECTION ========== -->
+<section id="loginSection">
+  <div class="login-box">
+    <h1>AASMS Login</h1>
+    <form id="loginForm">
+      <label>Email (must end with @ksrce.ac.in)</label>
+      <input type="email" id="email" required />
+      <label>Password</label>
+      <input type="password" id="password" required />
+      <button type="submit">Login</button>
+    </form>
+    <p id="status"></p>
+  </div>
+</section>
+
+<!-- ========== DASHBOARD SECTION ========== -->
+<section id="dashboardSection">
+  <header>
+    📘 Student Dashboard
+    <button onclick="logout()">Logout</button>
+  </header>
+
+  <main>
+    <!-- Scanner Tab -->
+    <div id="scannerTab" class="tab active">
+      <h3 style="text-align:center;">Scan QR to Mark Attendance</h3>
+      <div id="reader"></div>
+      <div id="feedback">Waiting for scan...</div>
+    </div>
+
+    <!-- Attendance Tab -->
+    <div id="attendanceTab" class="tab">
+      <h3 style="text-align:center;">Today’s Attendance</h3>
+      <div class="table-container">
+        <table id="attendanceTable">
+          <thead>
+            <tr><th>Period</th><th>Time</th><th>Type</th><th>Status</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>1</td><td>9:00 – 9:50</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>2</td><td>9:50 – 10:40</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>3</td><td>10:55 – 11:45</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>4</td><td>11:45 – 12:35</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>5</td><td>1:30 – 2:20</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>6</td><td>2:20 – 3:10</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>7</td><td>3:10 – 4:00</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+            <tr><td>8</td><td>4:00 – 4:50</td><td>-</td><td class="notmarked">Not Marked</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Timetable Tab -->
+    <div id="timetableTab" class="tab">
+      <h3 style="text-align:center;">Timetable</h3>
+      <div class="table-container">
+        <table>
+          <thead><tr><th>Period</th><th>Time</th><th>Subject</th></tr></thead>
+          <tbody id="timetableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <div class="tab-nav">
+    <button onclick="openTab('scannerTab', this)" class="active">📷<span>Scanner</span></button>
+    <button onclick="openTab('attendanceTab', this)">📊<span>Attendance</span></button>
+    <button onclick="openTab('timetableTab', this)">📅<span>Timetable</span></button>
+  </div>
+</section>
+
+<script>
+  // ================= Firebase ==================
+  const firebaseConfig = {
+    apiKey: "AIzaSyB8T7Y692ytTeHlfdAPQ9fOvZ3e2qEPTKs",
+    authDomain: "aasms-6a83a.firebaseapp.com",
+    projectId: "aasms-6a83a",
+    storageBucket: "aasms-6a83a.firebasestorage.app",
+    messagingSenderId: "475962750818",
+    appId: "1:475962750818:web:53b5064c18c7f1e56f1e3b"
+  };
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.firestore();
+
+  const loginSection = document.getElementById("loginSection");
+  const dashboardSection = document.getElementById("dashboardSection");
+  const statusEl = document.getElementById("status");
+
+  // ================= LOGIN (Firestore only) ==================
+  document.getElementById("loginForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("email").value.trim();
+    const password = document.getElementById("password").value.trim();
+
+    if (!email.endsWith("@ksrce.ac.in")) {
+      statusEl.textContent = "❌ Only @ksrce.ac.in emails are allowed";
+      statusEl.style.color = "red";
+      return;
+    }
+
+    try {
+      const snapshot = await db.collection("students")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+
+      if (snapshot.empty) {
+        statusEl.textContent = "❌ No student found with this email";
+        statusEl.style.color = "red";
+        return;
+      }
+
+      const doc = snapshot.docs[0];
+      const student = doc.data();
+
+      if (student.password === password) {
+        statusEl.textContent = "✅ Login successful! Redirecting...";
+        statusEl.style.color = "green";
+        localStorage.setItem("studentId", doc.id);
+
+        setTimeout(() => {
+          loginSection.style.display = "none";
+          dashboardSection.style.display = "block";
+          initDashboard(doc.id, student);
+        }, 1000);
+      } else {
+        statusEl.textContent = "❌ Incorrect password";
+        statusEl.style.color = "red";
+      }
+    } catch (err) {
+      statusEl.textContent = "❌ Error: " + err.message;
+      statusEl.style.color = "red";
+    }
+  });
+
+  function logout() {
+    localStorage.removeItem("studentId");
+    loginSection.style.display = "flex";
+    dashboardSection.style.display = "none";
+  }
+
+  function openTab(tabId, btn) {
+    document.querySelectorAll(".tab").forEach(tab => tab.classList.remove("active"));
+    document.querySelectorAll(".tab-nav button").forEach(b => b.classList.remove("active"));
+    document.getElementById(tabId).classList.add("active");
+    btn.classList.add("active");
+  }
+
+  const periods = [
+    { start: "09:00", end: "09:50" },
+    { start: "09:50", end: "10:40" },
+    { start: "10:55", end: "11:45" },
+    { start: "11:45", end: "12:35" },
+    { start: "13:30", end: "14:20" },
+    { start: "14:20", end: "15:10" },
+    { start: "15:10", end: "16:00" },
+    { start: "16:00", end: "16:50" }
+  ];
+  function getPeriodIndex(now) {
+    const current = now.getHours()*60 + now.getMinutes();
+    for (let i=0;i<periods.length;i++) {
+      const [sh, sm] = periods[i].start.split(":").map(Number);
+      const [eh, em] = periods[i].end.split(":").map(Number);
+      const startMin = sh*60+sm, endMin=eh*60+em;
+      if (current>=startMin && current<=endMin) return i;
+    }
+    return -1;
+  }
+  function getStatus(periodIndex, now) {
+    const [sh, sm] = periods[periodIndex].start.split(":").map(Number);
+    const startTime = new Date();
+    startTime.setHours(sh, sm, 0, 0);
+    const diffMinutes = (now - startTime)/60000;
+    if (diffMinutes <= 10) return "Present";
+    if (diffMinutes > 10 && diffMinutes <= 50) return "Late";
+    return "Absent";
+  }
+
+  async function markAttendance(studentId, periodIndex, status, now, type) {
+    const today = new Date().toISOString().split("T")[0];
+    const ref = db.collection("attendance").doc(studentId).collection(today).doc(`period${periodIndex+1}`);
+    await ref.set({
+      date: today, period: periodIndex+1, type: type,
+      status: status, timestamp: firebase.firestore.FieldValue.serverTimestamp()
+    });
+
+    const row = document.querySelector(`#attendanceTable tbody tr:nth-child(${periodIndex+1})`);
+    row.cells[2].textContent = type;
+    row.cells[3].textContent = status;
+    row.cells[3].className = status.toLowerCase();
+    document.getElementById("feedback").textContent = `✅ ${status} marked for ${type} in Period ${periodIndex+1}`;
+
+    // ✅ Show toast
+    const toast = document.getElementById("toast");
+    toast.textContent = `✅ ${status} - ${type} (Period ${periodIndex+1})`;
+    toast.style.display = "block";
+    setTimeout(() => { toast.style.display = "none"; }, 3000);
+  }
+
+  function initDashboard(studentId, student) {
+    if (student.timetable) {
+  const tbody = document.getElementById("timetableBody");
+  tbody.innerHTML = "";
+
+  // Loop through each day (Monday, Tuesday, ...)
+  Object.keys(student.timetable).forEach(day => {
+    const dayRow = `<tr><td colspan="3" style="background:#ffe6d9; font-weight:bold;">${day}</td></tr>`;
+    tbody.innerHTML += dayRow;
+
+    Object.keys(student.timetable[day]).forEach((p, i) => {
+      const row = student.timetable[day][p];
+      tbody.innerHTML += `
+        <tr>
+          <td>${i+1}</td>
+          <td>${periods[i].start} – ${periods[i].end}</td>
+          <td>${row.subject} (${row.status})</td>
+        </tr>`;
+    });
+  });
+}
+
+
+    let lastScanTime = 0;
+    function onScanSuccess(decodedText) {
+      const now = new Date();
+      const currentTime = now.getTime();
+      if (currentTime - lastScanTime < 5000) return;
+      lastScanTime = currentTime;
+
+      const periodIndex = getPeriodIndex(now);
+      if (periodIndex === -1) {
+        document.getElementById("feedback").textContent = "❌ Not within class time!";
+        return;
+      }
+
+      const text = decodedText.trim().toUpperCase().replace(/\s+/g,"");
+      if (text === "NORMALCLASSROOM") {
+        markAttendance(studentId, periodIndex, getStatus(periodIndex, now), now, "Normal");
+      } else if (text === "SKILLCLASSROOM") {
+        markAttendance(studentId, periodIndex, getStatus(periodIndex, now), now, "Skill");
+      } else {
+        document.getElementById("feedback").textContent = "❌ Invalid QR Code!";
+      }
+    }
+    function onScanFailure(err){}
+
+    const html5QrCode = new Html5Qrcode("reader");
+    Html5Qrcode.getCameras().then(cameras => {
+      if (cameras && cameras.length) {
+        const cameraId = cameras.length > 1 ? cameras[1].id : cameras[0].id;
+        html5QrCode.start(
+          cameraId, { fps:10, qrbox:{width:250,height:250} },
+          onScanSuccess, onScanFailure
+        ).catch(err => {
+          document.getElementById("feedback").textContent = "❌ Camera error: " + err;
+        });
+      } else {
+        document.getElementById("feedback").textContent = "❌ No cameras found.";
+      }
+    }).catch(err => {
+      document.getElementById("feedback").textContent = "❌ Camera error: " + err;
+    });
+  }
+
+  window.onload = async () => {
+    const id = localStorage.getItem("studentId");
+    if (id) {
+      const doc = await db.collection("students").doc(id).get();
+      if (doc.exists) {
+        loginSection.style.display = "none";
+        dashboardSection.style.display = "block";
+        initDashboard(id, doc.data());
+      }
+    }
+  }
+</script>
+</body>
+</html>
