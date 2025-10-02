@@ -147,13 +147,14 @@
 </section>
 <script>
   // ================= Firebase ==================
-  const firebaseConfig = {
-    apiKey: "AIzaSyB8T7Y692ytTeHlfdAPQ9fOvZ3e2qEPTKs",
-    authDomain: "aasms-6a83a.firebaseapp.com",
-    projectId: "aasms-6a83a",
-    storageBucket: "aasms-6a83a.firebasestorage.app",
-    messagingSenderId: "475962750818",
-    appId: "1:475962750818:web:53b5064c18c7f1e56f1e3b"
+    const firebaseConfig = {
+    apiKey: "AIzaSyAeSzmkoWY9R7hk-rr35Wq77AeZ36duaKc",
+  authDomain: "aasmss.firebaseapp.com",
+  projectId: "aasmss",
+  storageBucket: "aasmss.firebasestorage.app",
+  messagingSenderId: "375388402767",
+  appId: "1:375388402767:web:5c9564c67534ac2c7f263a",
+  measurementId: "G-VQP6HZ2CQ9"
   };
   firebase.initializeApp(firebaseConfig);
   const db = firebase.firestore();
@@ -161,6 +162,16 @@
   const loginSection = document.getElementById("loginSection");
   const dashboardSection = document.getElementById("dashboardSection");
   const statusEl = document.getElementById("status");
+
+  // ✅ Device ID generator
+  function getDeviceId() {
+    let deviceId = localStorage.getItem("deviceId");
+    if (!deviceId) {
+      deviceId = 'dev-' + Math.random().toString(36).substring(2) + Date.now();
+      localStorage.setItem("deviceId", deviceId);
+    }
+    return deviceId;
+  }
 
   // ================= LOGIN (Firestore only) ==================
   document.getElementById("loginForm").addEventListener("submit", async (e) => {
@@ -190,15 +201,28 @@
       const student = doc.data();
 
       if (student.password === password) {
-        statusEl.textContent = "✅ Login successful! Redirecting...";
-        statusEl.style.color = "green";
-        localStorage.setItem("studentId", doc.id);
+        const deviceId = getDeviceId();
 
+        if (!student.deviceId) {
+          // First login → save device ID
+          await db.collection("students").doc(doc.id).update({ deviceId });
+          statusEl.textContent = "✅ Device registered & Login successful!";
+          statusEl.style.color = "green";
+        } else if (student.deviceId !== deviceId) {
+          // Block if device mismatch
+          statusEl.textContent = "❌ Login blocked! Account already registered on another device.";
+          statusEl.style.color = "red";
+          return;
+        }
+
+        // ✅ Normal login flow
+        localStorage.setItem("studentId", doc.id);
         setTimeout(() => {
           loginSection.style.display = "none";
           dashboardSection.style.display = "block";
           initDashboard(doc.id, student);
         }, 1000);
+
       } else {
         statusEl.textContent = "❌ Incorrect password";
         statusEl.style.color = "red";
@@ -222,6 +246,7 @@
     btn.classList.add("active");
   }
 
+  // (⚡ Rest of your code remains unchanged below)
   const periods = [
     { start: "09:00", end: "09:50" },
     { start: "09:50", end: "10:40" },
