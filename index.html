@@ -315,15 +315,18 @@
         const dayRow = `<tr><td colspan="3" style="background:#ffe6d9; font-weight:bold;">${day}</td></tr>`;
         tbody.innerHTML += dayRow;
 
-        Object.keys(student.timetable[day]).forEach((p, i) => {
-          const row = student.timetable[day][p];
-          tbody.innerHTML += `
-            <tr>
-              <td>${i+1}</td>
-              <td>${periods[i].start} – ${periods[i].end}</td>
-              <td>${row.subject} (${row.status})</td>
-            </tr>`;
-        });
+        Object.keys(student.timetable[day])
+  .sort((a, b) => Number(a.replace("p","")) - Number(b.replace("p","")))
+  .forEach((p) => {
+    const periodNum = Number(p.replace("p",""));
+    const row = student.timetable[day][p];
+    tbody.innerHTML += `
+      <tr>
+        <td>${periodNum}</td>
+        <td>${periods[periodNum-1].start} – ${periods[periodNum-1].end}</td>
+        <td>${row.subject} (${row.status})</td>
+      </tr>`;
+  });
       });
     }
 
